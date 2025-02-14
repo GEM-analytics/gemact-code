@@ -6326,4 +6326,294 @@ class Multinomial(_MultDiscreteDistribution):
         return stats.multinomial.logpmf(n=self.n, p=self.p, x=x)
 
 
+
+class Dirichlet_Multinomial(_MultDiscreteDistribution):
+    """
+    Dirichlet Multinomial distribution.
+    Wrapper to scipy dirichlet multinomial distribution (``scipy.stats.dirichlet_multinomial``).
+    Refer to :py:class:'~__MultDiscreteDistribution' for additional details.
+
+
+    :param seed: Used to set a specific seed (default=np.random.RandomState).
+    :type seed: int
+    :param \\**kwargs:
+        See below
+
+    :Keyword Arguments:
+        * *alpha* ( ``int`` or ``numpy.ndarray``) --
+          Concentration parameters.           
+        * *n* (``int``) --
+          Number of trials.
+    """
     
+    def __init__(self, seed=None, **kwargs):
+        _DiscreteDistribution.__init__(self)
+        self.n = kwargs['n']
+        self.alpha = kwargs['alpha']
+        self.seed = seed
+               
+    @property
+    def seed(self):
+        return self.__seed
+    
+    @seed.setter
+    def seed(self, value):
+        if value is None:
+            value = np.random.randint(1, 1001)
+        
+        hf.assert_type_value(value, 'seed', logger, (float,int))
+        value = int(value)
+        self.__seed = value
+ 
+    @property
+    def n(self):
+        return self.__n
+
+    @n.setter
+    def n(self, value):
+        hf.assert_type_value(value, 'n', logger, (float, int), lower_bound=1, lower_close=True)
+        value = int(value)
+        self.__n = value
+
+    @property
+    def alpha(self):
+        return self.__alpha
+    
+    @alpha.setter
+    def alpha(self, value):
+        for element in value:
+            hf.assert_type_value(element, 'alpha', logger, (float, int))                
+        value = np.array(value)
+        self.__alpha = value
+
+    @property
+    def _dist(self):
+        return stats.dirichlet_multinomial(n=self.n, alpha=self.alpha, seed=self.seed)
+
+    @staticmethod
+    def name():
+        return 'dirichlet multinomial'
+    
+    @staticmethod
+    def category():
+        return {'frequency'}
+        
+    def cov(self):
+       """
+        Covariance Matrix of a Dirichlet Multinomial Distribution.
+        
+        :return: Covariance Matrix.
+        :rtype: ``float``
+        """
+
+       return stats.dirichlet_multinomial.cov(n=self.n, alpha=self.alpha)
+   
+    
+    def var(self):
+       """
+        Variances of a Dirichlet Multinomial Distribution.
+        
+        :return: Array of Variances.
+        :rtype: numpy.ndarray
+        """
+        
+       return np.diag(stats.dirichlet_multinomial.cov(n=self.n, alpha=self.alpha))
+ 
+    def pmf(self, x):
+        """
+        Probability mass function of the Dirichlet Multinomial Distribution.
+
+        :param x: quantile where probability mass function is evaluated.
+        :type x: ``int``
+
+        :return: probability mass function.
+        :rtype: ``numpy.float64`` or ``numpy.ndarray``
+        """
+        
+        if sum(x) != self.n:
+         raise ValueError("n != sum(x), i.e. one is wrong")    
+        return stats.dirichlet_multinomial.pmf(n=self.n, alpha=self.alpha, x=x)
+    
+    def logpmf(self, x):
+        """
+        Natural logarithm of the probability mass function of the Dirichlet Multinomial Distribution.
+
+        :param x: quantile where the (natural) probability mass function logarithm is evaluated.
+        :type x: ``int``
+        :return: natural logarithm of the probability mass function
+        :rtype: ``numpy.float64`` or ``numpy.ndarray``
+        """
+        
+        if sum(x) != self.n:
+         raise ValueError("n != sum(x), i.e. one is wrong")       
+        return stats.dirichlet_multinomial.logpmf(n=self.n, alpha=self.alpha, x=x)
+
+
+    def mean(self):
+        """
+        Mean of the Dirichlet Multinomial Distribution.
+
+        :param x: quantile where the (natural) probability mass function logarithm is evaluated.
+        :type x: ``int``
+        :return: natural logarithm of the probability mass function
+        :rtype: ``numpy.float64`` or ``numpy.ndarray``
+        """        
+        return stats.dirichlet_multinomial.mean(n=self.n, alpha=self.alpha)
+
+
+    def rvs(self, size=1, random_state=None):
+        """
+        Random variates generator function.
+
+        :param size: random variates sample size (default is 1).
+        :type size: ``int``, optional
+        :param random_state: random state for the random number generator.
+        :type random_state: ``int``, optional
+        :return: random variates.
+        :rtype: ``numpy.int`` or ``numpy.ndarray``
+
+        """
+        
+        random_state = hf.handle_random_state(random_state, logger)
+        np.random.seed(random_state)
+        hf.assert_type_value(size, 'size', logger, (float, int), lower_bound=1)
+        size = int(size)       
+        alpha = self.alpha
+        n = self.n    
+        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 1:
+            alpha = np.tile(alpha, (size, 1))
+            n = np.full(size, n)                
+        G = np.random.gamma(shape=alpha, scale=1.0)
+        prob = G / np.sum(G, axis=1, keepdims=True)        
+        ridx = np.sum(G, axis=1) == 0        
+        if np.any(ridx):
+            for i in np.where(ridx)[0]:
+                prob[i, :] = np.random.multinomial(1, alpha[i, :] / np.sum(alpha[i, :]), n=1).flatten()                
+        rdm = np.array([np.random.multinomial(n[i], prob[i, :]) for i in range(size)])      
+        return rdm
+
+
+class NegMultinom(_MultDiscreteDistribution):
+    """
+    Negative Multinomial distribution.
+
+    :param loc: location parameter (default=0), to shift the support of the distribution.
+    :type loc: ``int``, optional
+    :param \\**kwargs:
+        See below
+
+    :Keyword Arguments:
+        * *b* (``int``) --
+          dispersion parameter of the negative binomial distribution.
+        * *p* (``float``) --
+          Probability parameter of the negative binomial distribution.
+
+    """
+
+    def __init__(self, loc=0, **kwargs):
+        _DiscreteDistribution.__init__(self)
+        self.beta = kwargs['beta']
+        self.p = kwargs['p']
+        self.loc = loc
+        
+    @property
+    def beta(self):
+        return self.__beta
+
+    @beta.setter
+    def beta(self, value):
+        hf.assert_type_value(value, 'beta', logger, (float, int))
+        self.__beta = value
+
+    @property
+    def p(self):
+        return self.__p
+
+    @p.setter
+    def p(self, value):
+
+        for element in value:
+            hf.assert_type_value(element, 'p', logger, (float, np.floating), lower_bound=0, upper_bound=1, lower_close=True, upper_close=True)
+        value = np.array(value)
+        
+        if sum(value) >= 1:
+         raise ValueError("success probabilities must not be greater than 1.")
+        
+        self.__p = value
+
+    @staticmethod
+    def name():
+        return 'negative multinomial'
+
+    @staticmethod
+    def category():
+        return {'frequency'}
+    
+    
+    def pmf(self, x):
+
+        return mt.exp(self.logpmf(x))
+    
+    def logpmf(self, x):   
+        m = np.sum(x, axis=1)
+        d = x.shape[1]
+        logl = gammaln(self.beta + m) - gammaln(self.beta) - np.sum(gammaln(x + 1), axis=1)
+        logl += np.sum(x * np.log(self.p)) + self.beta * np.log(1-np.sum(self.p))
+    
+        return logl 
+
+    def cov(self, random_state=None):
+       """
+        Covariance Matrix of a Negative Multinomial Distribution.
+        :param random_state: random state for the random number generator.
+        :type random_state: ``int``, optional
+        :return: Covariance Matrix.
+        :rtype: ``float``
+        """
+        
+       random_state = hf.handle_random_state(random_state, logger)
+    
+       return np.cov(self.rvs(size=10000, random_state=random_state).T)
+   
+    
+    def var(self, random_state=None):
+       """
+        Variances of a Negative Multinomial Distribution.
+        :param random_state: random state for the random number generator.
+        :type random_state: ``int``, optional
+        :return: Array of Variances.
+        :rtype: numpy.ndarray
+        """
+       random_state = hf.handle_random_state(random_state, logger)
+        
+       return np.diag(self.cov(random_state=random_state))
+   
+    
+    def rvs(self, size=1, random_state=None):
+        """
+        Random variates generator function.
+
+        :param size: random variates sample size (default is 1).
+        :type size: ``int``, optional
+        :param random_state: random state for the random number generator.
+        :type random_state: ``int``, optional
+        :return: random variates.
+        :rtype: ``numpy.int`` or ``numpy.ndarray``
+
+        """        
+        prob = self.p
+        beta = self.beta
+        
+        random_state = hf.handle_random_state(random_state, logger)
+        np.random.seed(random_state)
+             
+        prob = np.tile(prob, (size, 1))      
+        k = prob.shape[1]
+        probbeta = 1 - np.sum(prob, axis=1)        
+        prob = np.hstack((prob, probbeta[:, np.newaxis]))
+        scale = 1 / probbeta - 1
+        
+        G = stats.gamma.rvs(a=beta, scale=scale, size=size)
+        lambda_ = prob[:, :k] * (G / (1 - probbeta))[:, np.newaxis]
+        
+        return np.array([stats.poisson.rvs(mu=l) for l in lambda_])
